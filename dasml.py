@@ -348,6 +348,8 @@ async def notifierProc(name, ipaddr):
                         j += 1
 
         for pt, type, confidence in result:
+            with open('warning.log', 'a', encoding='utf-8') as outputFile:
+                outputFile.write(f'[New Event] Type: {type}, km: {pt*0.02}, confidence: {confidence}\n')
             logger.info(
                 f'[New Event] Type: {type}, km: {pt*0.02}, confidence: {confidence}')
             # 创建新event，level<1，不用发送
