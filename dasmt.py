@@ -377,6 +377,9 @@ async def notifierProc(name, ipaddr):
 
         for event in eventToSend:
             pkg = event.genAlarmPackage(True)
+            with open('alarm.log', 'a', encoding='utf-8') as alarmFile:
+                alarmFile.write(datetime.strftime(datetime.now(), '%Y-%m-%d %I:%M:%S %p') + str(pkg))
+                alarmFile.write('\n')
             writer.write(pkg)  # send event-start
             await writer.drain()
 

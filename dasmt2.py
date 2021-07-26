@@ -19,7 +19,7 @@ import warnings
 warnings.filterwarnings("ignore")
 import numpy as np
 
-# np.set_printoptions(threshold=np.inf)
+np.set_printoptions(threshold=np.inf)
 
 RECORD_SIZE = 1152
 # 多阈值识别法
@@ -197,7 +197,7 @@ class Event(object):
             self.published = True
             self.alarmTimes += 1
         self.updated = False
-        alarmStr = f"DVS,{'S' if startOrStop else 'E'},{self.id},1,1,{self.getCenterKm():.3f},{self.level},{self.type},{self.alarmTimes},{self.heat}#"
+        alarmStr = f"DVS,{'S' if startOrStop else 'E'},010,{self.id},1,1,{self.getCenterKm():.3f},{self.level},{self.type},{self.alarmTimes},{self.heat}#"
         return alarmStr.encode(encoding='UTF-8')
 
     def hasBeenPublished(self) -> bool:
@@ -387,6 +387,15 @@ async def notifierProc(name, ipaddr):
                     if type > 1 and pt_recog[type] > 0.25:  # 桂林周总：只需要人工、机械报警
                         # 桂林周总要求 7:人工，8：机械
                         result.append((pt, type + 5, confidence))
+                        with open('result.log', 'a', encoding='utf-8') as resultFile:
+                            resultFile.write(
+                                datetime.strftime(datetime.now(), '%Y-%m-%d %I:%M:%S %p') + '--- OUTPUT DATA ---\n')
+                            resultFile.write(str(outputs))
+                            resultFile.write('\n')
+                            resultFile.write(
+                                datetime.strftime(datetime.now(), '%Y-%m-%d %I:%M:%S %p') + '--- RESULT DATA ---\n')
+                            resultFile.write(str(result))
+                            resultFile.write('\n')
 
         eventToSend = []
         i = 0
@@ -437,6 +446,11 @@ async def notifierProc(name, ipaddr):
                 # 创建新event，level<1，不用发送
                 event = Event(timeStamp, pt, type)
                 events.append(event)
+                with open('result.log', 'a', encoding='utf-8') as resultFile:
+                    resultFile.write(
+                        datetime.strftime(datetime.now(), '%Y-%m-%d %I:%M:%S %p') + '--- EVENT DATA ---\n')
+                    resultFile.write(f'New Event[{event.id}]: ptRange = {event.ptRange}, CenterKm: {event.getCenterKm():.3f}, Level: {event.level}, Type: {event.type}, AlarmTimes: {event.alarmTimes}, Heat: {event.heat}')
+                    resultFile.write('\n\n')
                 print(
                     f"**** New Event[{event.id}]: ptRange = {event.ptRange}, type = {event.getType()}, heat = {event.heat}")
                 if type == 10:
@@ -451,7 +465,7 @@ async def notifierProc(name, ipaddr):
         for event in eventToSend:
             pkg = event.genAlarmPackage(True)
             with open('alarm.log', 'a', encoding='utf-8') as alarmFile:
-                alarmFile.write(str(pkg))
+                alarmFile.write(datetime.strftime(datetime.now(), '%Y-%m-%d %I:%M:%S %p') + '---' + str(pkg))
                 alarmFile.write('\n')
             print(
                 f"**** Sending Event[{event.id}]: ptRange = {event.ptRange}, km = {event.getCenterKm()}, heat = {event.heat}")
