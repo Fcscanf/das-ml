@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import os
+import signal as syssignal
+import sys
 import socket
 import time
 from asyncio.streams import StreamReader, StreamWriter
@@ -69,15 +71,43 @@ logger.setLevel(level=logging.DEBUG)
 logger.addHandler(fh)
 logger.addHandler(ch)
 logger.info("test")
+eventIdSaveFile = 'id'
 
 notifierQueue = Queue(maxsize=0)
 
 EventIdPool: int = 0
 
 
+def readEventId():
+    global EventIdPool
+    if not os.path.exists(eventIdSaveFile):
+        with open('id', mode='w') as idFile:
+            idFile.write(str(EventIdPool))
+    else:
+        with open('id', mode='r+') as idFile:
+            idValue = idFile.readline()
+            if idValue != '':
+                EventIdPool = int(idValue)
+            else:
+                idFile.write(str(EventIdPool))
+
+
+def saveEventId():
+    with open('id', mode='w') as idFile:
+        idFile.write(str(EventIdPool))
+
+
+def exitHandler(signum, frame):
+    saveEventId()
+    print('exit')
+    sys.exit()
+
+
 def getNewEventId() -> int:
     global EventIdPool
+    readEventId()
     EventIdPool = (EventIdPool + 1) % 4294967296
+    saveEventId()
     return EventIdPool
 
 
@@ -491,6 +521,8 @@ async def tcp_reconnect(name, ipaddr, proc):
 
 
 async def main():
+    syssignal.signal(syssignal.SIGINT, exitHandler)
+    syssignal.signal(syssignal.SIGTERM, exitHandler)
     # coros = [tcp_reconnect("PowerEngine", deviceAddr, powerEngineProc),
     #          tcp_reconnect("Notifier", serverAddr, notifierProc)]
     coros = [tcp_reconnect("Notifier", serverAddr, notifierProc),
