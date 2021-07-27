@@ -24,21 +24,21 @@ np.set_printoptions(threshold=np.inf)
 RECORD_SIZE = 1152
 # 多阈值识别法
 ###############
-EVENT_MAX_TIME_RANGE = 45  # seconds
+EVENT_MAX_TIME_RANGE = 45  # seconds 调整灵敏度（聚类操作的阈值）
 EVENT_MAX_PT_RANGE = 25  # pts
 EVENT_GROW_TIME_GAP = 20  # seconds，事件增长时间阈值
 EVENT_GROW_PT_GAP = 15  # pts,事件增长距离阈值
 EVENT_EXPIRED_TIME = 60  # seconds,事件不增长时多久被遗弃
-EVENT_VISIBLE_HEAT = 340  # seconds,事件可见（上报）的时间阈值,即level=3
-EVENT_SUSPECTED_HEAT = 600  # seconds,事件变为疑似的时间阈值,即level=2
-EVENT_DANGROUS_HEAT = 1300  # seconds,事件变为严重威胁的时间阈值,即level=1
-EVENT_DIG_HEAT_INC = 15
+EVENT_VISIBLE_HEAT = 340  # seconds,事件可见（上报）的热度阈值,即level=3
+EVENT_SUSPECTED_HEAT = 600  # seconds,事件变为疑似的热度阈值,即level=2
+EVENT_DANGROUS_HEAT = 1300  # seconds,事件变为严重威胁的热度阈值,即level=1
+EVENT_DIG_HEAT_INC = 15  # 人工敲击热度增长的量
 EVENT_DIG_HEAT_DEC = 100
-EVENT_EXCAVATOR_HEAT_INC = 8
+EVENT_EXCAVATOR_HEAT_INC = 8  # 机械挖掘热度增长的量
 EVENT_EXCAVATOR_HEAT_DEC = 200
-KM_PER_PT = 0.002
+KM_PER_PT = 0.002  # 计算距离的量
 ###############
-HEART_BEAT_DURATION = 60  # 5s
+HEART_BEAT_DURATION = 3600  # 5s
 # serverAddr = ("10.100.0.145", 9601)
 # deviceAddr = ('127.0.0.1', 9989)
 # LOG_FILE = './dasml.log'
@@ -449,7 +449,8 @@ async def notifierProc(name, ipaddr):
                 with open('result.log', 'a', encoding='utf-8') as resultFile:
                     resultFile.write(
                         datetime.strftime(datetime.now(), '%Y-%m-%d %I:%M:%S %p') + '--- EVENT DATA ---\n')
-                    resultFile.write(f'New Event[{event.id}]: ptRange = {event.ptRange}, CenterKm: {event.getCenterKm():.3f}, Level: {event.level}, Type: {event.type}, AlarmTimes: {event.alarmTimes}, Heat: {event.heat}')
+                    resultFile.write(
+                        f'New Event[{event.id}]: ptRange = {event.ptRange}, CenterKm: {event.getCenterKm():.3f}, Level: {event.level}, Type: {event.type}, AlarmTimes: {event.alarmTimes}, Heat: {event.heat}')
                     resultFile.write('\n\n')
                 print(
                     f"**** New Event[{event.id}]: ptRange = {event.ptRange}, type = {event.getType()}, heat = {event.heat}")
