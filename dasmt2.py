@@ -21,6 +21,9 @@ import warnings
 warnings.filterwarnings("ignore")
 import numpy as np
 
+# import numba as nb
+# from numba import jit
+# from numba.misc.special import prange
 np.set_printoptions(threshold=np.inf)
 
 RECORD_SIZE = 1152
@@ -47,7 +50,7 @@ HEART_BEAT_DURATION = 3600  # 5s
 
 serverAddr = ("192.168.136.203", 9601)
 deviceAddr = ('127.0.0.1', 9989)
-LOG_FILE = '/home/jetsky/software/dasml.log'
+LOG_FILE = './dasml.log'
 ###############
 # 创建一个handler，用于写入日志文件
 fh = RotatingFileHandler(LOG_FILE,
@@ -76,6 +79,21 @@ eventIdSaveFile = 'id'
 notifierQueue = Queue(maxsize=0)
 
 EventIdPool: int = 0
+
+
+# @jit
+def lenvelop(arr: np.ndarray) -> np.ndarray:
+    result = np.zeros(arr.shape, dtype=arr.dtype)
+    last = arr[0]
+    result[0] = last
+    for i in range(1, arr.size):
+        cur = arr[i]
+        if last >= cur:
+            last = cur
+        else:
+            last += (cur - last) * 0.03
+        result[i] = last
+    return result
 
 
 def readEventId():
@@ -259,7 +277,7 @@ async def mlEngineProc(name, ipaddr):
     workDir = os.path.dirname(os.path.abspath(__file__))
     logger.info(f"[{name}] Trying to receive data from {ipaddr}")
 
-    features = np.zeros((64, RECORD_SIZE), dtype=np.float32)
+    # features = np.zeros((64, RECORD_SIZE), dtype=np.float32)
     recvBuf = np.zeros(RECORD_SIZE * 256 * 64, dtype=np.float32)
     idx = 0
     try:
@@ -302,19 +320,38 @@ async def mlEngineProc(name, ipaddr):
             print(f'******** frame shape = {frame.shape}')
             # lastFramSht=frameShts[-256:,:].copy()
             # print(f'******** lastFramSht shape = {frameShts.shape}')
+            outputs = np.array([[1, 0, 0, 0]] * RECORD_SIZE)
             for pt in range(RECORD_SIZE):
                 y = frame[pt, :]
                 y_filterd = signal.filtfilt(b, a, y).copy()
                 y_filterd = torch.from_numpy(y_filterd).float().to(device)
                 mfcc = mfcc_layer(y_filterd).cpu().numpy()[0]
+                le = lenvelop(mfcc[0, :])
                 mfcc = sklearn.preprocessing.scale(mfcc, axis=1)
-                lowest = mfcc[0, :]
-                lowest = np.abs(np.diff(lowest))
-                lowest = np.where((lowest < 1.7), 0, lowest)
-                lowest = np.where((lowest >= 1.7), 1, lowest)
-                if pt == 0:
-                    print(f"lowest shape = {lowest.shape}")
-                features[:, pt] = lowest
+                mean = le[1:].mean()
+                # if pt == 529 or pt == 643:
+                #     print(f'{pt}--{mean}')
+                if mean > 750:
+                    with open('machine.log', 'a', encoding='utf-8') as resultFile:
+                        resultFile.write(
+                            datetime.strftime(datetime.now(), '%Y-%m-%d %I:%M:%S %p') + f':Machine: pt = {pt}, mean={mean}\n')
+                    print(f'Machine: pt = {pt}, mean={mean}')
+                    outputs[pt, :] = [0, 0, 0, 1]
+                else:
+                    lowest = mfcc[0, :]
+                    lowest = np.abs(np.diff(lowest))
+                    lowest = np.where((lowest < 1.7), 0, lowest)
+                    lowest = np.where((lowest >= 1.7), 1, lowest)
+                    # if pt == 0:
+                    #     print(f"lowest shape = {lowest.shape}")
+                    # features[:, pt] = lowest
+                    feature: np.ndarray = lowest
+                    ones = np.sum(feature == 1)
+                    # if pt==209 or pt==214:
+                    #     print(f"pt = {pt}, ones = {ones}")
+                    if ones > 11:
+                        print(f"Slapping: pt = {pt}")
+                        outputs[pt, :] = [0, 0, 1, 0]
 
             # #debug
             # pt=214            
@@ -326,15 +363,15 @@ async def mlEngineProc(name, ipaddr):
 
             # 判断报警
             # ['背景噪声', '重车通过', '人工挖掘', '机械挖掘']
-            outputs = np.array([[1, 0, 0, 0]] * RECORD_SIZE)
-            for pt in range(RECORD_SIZE):  # 在此判断类型
-                feature: np.ndarray = features[:, pt]
-                ones = np.sum(feature == 1)
-                # if pt==209 or pt==214:
-                #     print(f"pt = {pt}, ones = {ones}")
-                if ones > 11:
-                    print(f"Slapping: pt = {pt}")
-                    outputs[pt, :] = [0, 0, 1, 0]
+
+            # for pt in range(RECORD_SIZE):  # 在此判断类型
+            #     feature: np.ndarray = features[:, pt]
+            #     ones = np.sum(feature == 1)
+            #     # if pt==209 or pt==214:
+            #     #     print(f"pt = {pt}, ones = {ones}")
+            #     if ones > 11:
+            #         print(f"Slapping: pt = {pt}")
+            #         outputs[pt, :] = [0, 0, 1, 0]
             notifierQueue.put(outputs)
     except:
         traceback.print_exc()
